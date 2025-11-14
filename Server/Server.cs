@@ -7,8 +7,8 @@ namespace Server
 {
     internal class Server
     {
-        int _heartBeatIntervalInSec = 5;
-        int _heartBeatChecksLimit = 3;
+        const int HEARTBEAT_INTERVAL_IN_SEC = 5;
+        const int HEARBEAT_CHECKS_LIMIT = 3;
 
         TcpListener _listener;
         ConcurrentDictionary<TcpClient, DateTime> _clients;
@@ -61,7 +61,7 @@ namespace Server
         }
         async Task StartHeartBeatForClient(TcpClient client)
         {
-            int heartBeatChecksLeft = _heartBeatChecksLimit;
+            int heartBeatChecksLeft = HEARBEAT_CHECKS_LIMIT;
             bool everythingOk = true;
             while (everythingOk)
             {
@@ -71,9 +71,9 @@ namespace Server
                 heartBeatChecksLeft--;
                 if (success)
                 {
-                    if ((DateTime.UtcNow - latest).TotalSeconds <= _heartBeatIntervalInSec * 2.5 && heartBeatChecksLeft >= 0)
+                    if ((DateTime.UtcNow - latest).TotalSeconds <= HEARTBEAT_INTERVAL_IN_SEC * 2.5 && heartBeatChecksLeft >= 0)
                     {
-                        heartBeatChecksLeft = _heartBeatChecksLimit;
+                        heartBeatChecksLeft = HEARBEAT_CHECKS_LIMIT;
                         await SendMessageToClient(client, 1, "PING");
 
                     }
@@ -95,7 +95,7 @@ namespace Server
 
                 if (everythingOk)
                 {
-                    await Task.Delay(_heartBeatIntervalInSec * 1000);
+                    await Task.Delay(HEARTBEAT_INTERVAL_IN_SEC * 1000);
                 }
 
 
