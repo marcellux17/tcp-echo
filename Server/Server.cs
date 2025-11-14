@@ -10,9 +10,9 @@ namespace Server
         const int HEARTBEAT_INTERVAL_IN_SEC = 5;
         const int HEARBEAT_CHECKS_LIMIT = 3;
 
-        TcpListener _listener;
-        ConcurrentDictionary<TcpClient, DateTime> _clients;
-        ConcurrentDictionary<TcpClient, SemaphoreSlim> _writeLocks;
+        readonly TcpListener _listener;
+        readonly ConcurrentDictionary<TcpClient, DateTime> _clients;
+        readonly ConcurrentDictionary<TcpClient, SemaphoreSlim> _writeLocks;
 
         public Server(Int32 port)
         {

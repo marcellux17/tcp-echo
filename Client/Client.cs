@@ -8,10 +8,12 @@ namespace Client
     {
         const int HEARTBEAT_INTERVAL_IN_SEC = 5;
         const int HEARTBEAT_CHECKS_LIMIT = 3;
+        
+        readonly TcpClient _socket;
+        readonly IPEndPoint _remoteEndPoint;
+        
         TaskCompletionSource<string>? _messageEcho;
         DateTime _lastMessage;
-        TcpClient _socket;
-        IPEndPoint _remoteEndPoint;
         int _connectionAliveFlag;
 
         SemaphoreSlim writeLock;
