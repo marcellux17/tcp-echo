@@ -6,32 +6,32 @@ namespace Client
 {
     internal class Client
     {
-        int heartBeatIntervalInSec = 5;
-        int heartBeatChecksLimit = 3;
-        TaskCompletionSource<string>? messageEcho;
-        DateTime lastMessage;
-        TcpClient socket;
-        IPEndPoint remoteEndPoint;
-        int connectionAliveFlag;
+        int _heartBeatIntervalInSec = 5;
+        int _heartBeatChecksLimit = 3;
+        TaskCompletionSource<string>? _messageEcho;
+        DateTime _lastMessage;
+        TcpClient _socket;
+        IPEndPoint _remoteEndPoint;
+        int _connectionAliveFlag;
 
         SemaphoreSlim writeLock;
         public Client(IPAddress serverAddress, Int32 serverPort)
         {
-            remoteEndPoint = new IPEndPoint(serverAddress, serverPort);
-            socket = new TcpClient(new IPEndPoint(IPAddress.Any, 0));
-            connectionAliveFlag = 0;
+            _remoteEndPoint = new IPEndPoint(serverAddress, serverPort);
+            _socket = new TcpClient(new IPEndPoint(IPAddress.Any, 0));
+            _connectionAliveFlag = 0;
             writeLock = new SemaphoreSlim(1, 1);   
         }
         public async Task Connect()
         {
             try
             {
-                socket.Connect(remoteEndPoint);
-                connectionAliveFlag = 1;
+                _socket.Connect(_remoteEndPoint);
+                _connectionAliveFlag = 1;
                 ReadStream();
                 PrintWelcomeMessage();
                 CheckHeartBeats();
-                while (Interlocked.CompareExchange(ref connectionAliveFlag, 1, 1) == 1)
+                while (Interlocked.CompareExchange(ref _connectionAliveFlag, 1, 1) == 1)
                 {
                     Console.Write("> ");
 
@@ -39,14 +39,14 @@ namespace Client
                     await writeLock.WaitAsync();
                     try
                     {
-                        await NetworkHelper.SendMessage(0, socket, messageText);
+                        await NetworkHelper.SendMessage(0, _socket, messageText);
                     }
                     finally
                     {
                         writeLock.Release();
                     }
-                    messageEcho = new TaskCompletionSource<string>();
-                    string echo = await messageEcho.Task;
+                    _messageEcho = new TaskCompletionSource<string>();
+                    string echo = await _messageEcho.Task;
                     Console.WriteLine(echo);
                     await Task.Delay(100);
 
@@ -58,40 +58,40 @@ namespace Client
             }
 
         }
-        private async Task CheckHeartBeats()
+        async Task CheckHeartBeats()
         {
-            int heartBeatChecksLeft = heartBeatChecksLimit;
-            while (Interlocked.CompareExchange(ref connectionAliveFlag, 1, 1) == 1)
+            int heartBeatChecksLeft = _heartBeatChecksLimit;
+            while (Interlocked.CompareExchange(ref _connectionAliveFlag, 1, 1) == 1)
             {
                 heartBeatChecksLeft--;
-                if ((DateTime.UtcNow - lastMessage).TotalSeconds <= heartBeatIntervalInSec * 2.5 && heartBeatChecksLeft >= 0)
+                if ((DateTime.UtcNow - _lastMessage).TotalSeconds <= _heartBeatIntervalInSec * 2.5 && heartBeatChecksLeft >= 0)
                 {
-                    heartBeatChecksLeft = heartBeatChecksLimit;
+                    heartBeatChecksLeft = _heartBeatChecksLimit;
                 }
                 else if (heartBeatChecksLeft < 0)
                 {
                     await CloseClient();
                 }
-                if (Interlocked.CompareExchange(ref connectionAliveFlag, 1, 1) == 1)
+                if (Interlocked.CompareExchange(ref _connectionAliveFlag, 1, 1) == 1)
                 {
-                    await Task.Delay(heartBeatIntervalInSec * 1000);
+                    await Task.Delay(_heartBeatIntervalInSec * 1000);
                 }
             }
         }
-        private async Task ReadStream()
+        async Task ReadStream()
         {
             while (true)
             {
-                int messageType = await NetworkHelper.GetMessageType(socket);
-                lastMessage = DateTime.UtcNow;
-                int payloadLength = await NetworkHelper.GetMessageLength(socket);
-                string message = await NetworkHelper.GetMessage(socket, payloadLength);
+                int messageType = await NetworkHelper.GetMessageType(_socket);
+                _lastMessage = DateTime.UtcNow;
+                int payloadLength = await NetworkHelper.GetMessageLength(_socket);
+                string message = await NetworkHelper.GetMessage(_socket, payloadLength);
                 if (messageType == 1)
                 {
                     await writeLock.WaitAsync();
                     try
                     {
-                        await NetworkHelper.SendMessage(1, socket, "PONG");
+                        await NetworkHelper.SendMessage(1, _socket, "PONG");
                     }
                     finally
                     {
@@ -100,23 +100,23 @@ namespace Client
                 }
                 else
                 {
-                    messageEcho.SetResult(message);
+                    _messageEcho.SetResult(message);
                 }
             }
 
         }
-        private void PrintWelcomeMessage()
+        void PrintWelcomeMessage()
         {
             Console.WriteLine("Welcome to the echo server!");
             Console.WriteLine("Send messages to the server and see if it responds!");
         }
-        private async Task CloseClient()
+        async Task CloseClient()
         {
-            if (Interlocked.Exchange(ref connectionAliveFlag, 0) == 1)
+            if (Interlocked.Exchange(ref _connectionAliveFlag, 0) == 1)
             {
                 Console.WriteLine($"Server unavailble :(");
                 Console.WriteLine("Client shutting down...");
-                socket.Close();
+                _socket.Close();
                 await Task.Delay(500);
                 Environment.Exit(0);
             }

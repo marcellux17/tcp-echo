@@ -7,41 +7,41 @@ namespace Server
 {
     internal class Server
     {
-        int heartBeatIntervalInSec = 5;
-        int heartBeatChecksLimit = 3;
+        int _heartBeatIntervalInSec = 5;
+        int _heartBeatChecksLimit = 3;
 
-        TcpListener listener;
-        ConcurrentDictionary<TcpClient, DateTime> clients;
-        ConcurrentDictionary<TcpClient, SemaphoreSlim> writeLocks;
+        TcpListener _listener;
+        ConcurrentDictionary<TcpClient, DateTime> _clients;
+        ConcurrentDictionary<TcpClient, SemaphoreSlim> _writeLocks;
 
         public Server(Int32 port)
         {
             IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Any, port);
-            listener = new TcpListener(serverEndPoint);
-            clients = new ConcurrentDictionary<TcpClient, DateTime>();
-            writeLocks = new ConcurrentDictionary<TcpClient, SemaphoreSlim>();
+            _listener = new TcpListener(serverEndPoint);
+            _clients = new ConcurrentDictionary<TcpClient, DateTime>();
+            _writeLocks = new ConcurrentDictionary<TcpClient, SemaphoreSlim>();
         }
         public async Task Start()
         {
-            listener.Start();
+            _listener.Start();
             while (true)
             {
-                TcpClient newClient = await listener.AcceptTcpClientAsync();
+                TcpClient newClient = await _listener.AcceptTcpClientAsync();
                 Console.WriteLine($"Client accepted: {newClient.Client.RemoteEndPoint?.ToString()}");
                 HandleNewClient(newClient);
             }
         }
-        private async Task HandleNewClient(TcpClient client)
+        async Task HandleNewClient(TcpClient client)
         {
-            clients[client] = DateTime.UtcNow;
-            writeLocks[client] = new SemaphoreSlim(1, 1);
+            _clients[client] = DateTime.UtcNow;
+            _writeLocks[client] = new SemaphoreSlim(1, 1);
             try
             {
                 StartHeartBeatForClient(client);
                 while (true)
                 {
                     int messageType = await NetworkHelper.GetMessageType(client);
-                    clients[client] =  DateTime.UtcNow;
+                    _clients[client] =  DateTime.UtcNow;
                     int payloadSize = await NetworkHelper.GetMessageLength(client);
                     string message = await NetworkHelper.GetMessage(client, payloadSize);
                     if (messageType == 0)
@@ -59,21 +59,21 @@ namespace Server
                 CloseClient(client);
             }
         }
-        private async Task StartHeartBeatForClient(TcpClient client)
+        async Task StartHeartBeatForClient(TcpClient client)
         {
-            int heartBeatChecksLeft = heartBeatChecksLimit;
+            int heartBeatChecksLeft = _heartBeatChecksLimit;
             bool everythingOk = true;
             while (everythingOk)
             {
                 DateTime latest;
-                bool success = clients.TryGetValue(client, out latest);
+                bool success = _clients.TryGetValue(client, out latest);
 
                 heartBeatChecksLeft--;
                 if (success)
                 {
-                    if ((DateTime.UtcNow - latest).TotalSeconds <= heartBeatIntervalInSec * 2.5 && heartBeatChecksLeft >= 0)
+                    if ((DateTime.UtcNow - latest).TotalSeconds <= _heartBeatIntervalInSec * 2.5 && heartBeatChecksLeft >= 0)
                     {
-                        heartBeatChecksLeft = heartBeatChecksLimit;
+                        heartBeatChecksLeft = _heartBeatChecksLimit;
                         await SendMessageToClient(client, 1, "PING");
 
                     }
@@ -95,26 +95,26 @@ namespace Server
 
                 if (everythingOk)
                 {
-                    await Task.Delay(heartBeatIntervalInSec * 1000);
+                    await Task.Delay(_heartBeatIntervalInSec * 1000);
                 }
 
 
             }
 
         }
-        private void CloseClient(TcpClient client)
+        void CloseClient(TcpClient client)
         {
-            bool success = clients.TryRemove(client, out _);
+            bool success = _clients.TryRemove(client, out _);
             if (success)
             {
-                writeLocks.TryRemove(client, out _);
+                _writeLocks.TryRemove(client, out _);
                 Console.WriteLine($"Client disconnected: {client.Client.RemoteEndPoint?.ToString()}");
                 client.Close();
             }
         }
-        private async Task SendMessageToClient(TcpClient client,int messageType, string message)
+        async Task SendMessageToClient(TcpClient client,int messageType, string message)
         {
-            bool success = writeLocks.TryGetValue(client, out var writeLock);
+            bool success = _writeLocks.TryGetValue(client, out var writeLock);
             if (success)
             {
                 await writeLock!.WaitAsync();
